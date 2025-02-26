@@ -22,48 +22,48 @@ VERDE = (0, 255, 0)
 
 # José Eduardo Williams 23-EISN-2-048
 # Configuración del personaje
-ancho_jugador = 50
-alto_jugador = 50
-jugador_x = ancho_pantalla // 2
-jugador_y = alto_pantalla // 2
-jugador_velocidad = 5
+jugador_ancho = 50
+jugador_alto = 50
+jugador_velocidad = 3  # Movimiento más lento
 
 # Configuración de los enemigos
 enemigo_ancho = 50
 enemigo_alto = 50
-enemigo_velocidad = 2
-enemigo_conteo = 10
+enemigo_velocidad = 1  # Enemigos más lentos que el jugador
+enemigo_recuento = 10
 
 # Configuración de los obstáculos
 obstaculo_ancho = 100
 obstaculo_alto = 20
+distancia_entre_obstaculos = 150  # Distancia mínima entre obstáculos
+distancia_obstaculos_jugador = 100  # Distancia mínima de los obstáculos al jugador
 
+# José Eduardo Williams 23-EISN-2-048
 # Fuente para el texto
 font = pygame.font.SysFont("Arial", 30)
 
-# José Eduardo Williams 23-EISN-2-048
 # Función para mostrar texto en pantalla
 def dibujar_contador(text, x, y):
     label = font.render(text, True, BLANCO)
     screen.blit(label, (x, y))
 
 # Función para mover al jugador
-def mover_jugador(keys, x, y):
-    if keys[pygame.K_w]:
+def mover_jugador(keys, x, y, obstaculos):
+    if keys[pygame.K_w] and y > 0 and not any([obstaculo.colliderect(pygame.Rect(x, y - jugador_velocidad, jugador_ancho, jugador_alto)) for obstaculo in obstaculos]):
         y -= jugador_velocidad
-    if keys[pygame.K_s]:
+    if keys[pygame.K_s] and y < alto_pantalla - jugador_alto and not any([obstaculo.colliderect(pygame.Rect(x, y + jugador_velocidad, jugador_ancho, jugador_alto)) for obstaculo in obstaculos]):
         y += jugador_velocidad
-    if keys[pygame.K_a]:
+    if keys[pygame.K_a] and x > 0 and not any([obstaculo.colliderect(pygame.Rect(x - jugador_velocidad, y, jugador_ancho, jugador_alto)) for obstaculo in obstaculos]):
         x -= jugador_velocidad
-    if keys[pygame.K_d]:
+    if keys[pygame.K_d] and x < ancho_pantalla - jugador_ancho and not any([obstaculo.colliderect(pygame.Rect(x + jugador_velocidad, y, jugador_ancho, jugador_alto)) for obstaculo in obstaculos]):
         x += jugador_velocidad
     return x, y
 
-
+# José Eduardo Williams 23-EISN-2-048
 # Función para generar enemigos desde los bordes
-def generar_enemigos(count):
+def generar_enemigos(recuento):
     enemigos = []
-    for _ in range(count):
+    for _ in range(recuento):
         side = random.choice(['top', 'bottom', 'left', 'right'])
         if side == 'top':
             x = random.randint(0, ancho_pantalla - enemigo_ancho)
@@ -82,17 +82,26 @@ def generar_enemigos(count):
 
 # José Eduardo Williams 23-EISN-2-048
 # Función para mover los enemigos hacia el jugador
-def mover_enemigos(enemigos, jugador_rect):
+def mover_enemigos(enemigos, jugador_rect, obstaculos):
     for enemigo in enemigos:
         angulo = math.atan2(jugador_rect.centery - enemigo.centery, jugador_rect.centerx - enemigo.centerx)
         velocidad = [math.cos(angulo) * enemigo_velocidad, math.sin(angulo) * enemigo_velocidad]
         enemigo.x += velocidad[0]
         enemigo.y += velocidad[1]
+        
+        # Bloquear enemigos con obstáculos
+        for obstaculo in obstaculos:
+            if enemigo.colliderect(obstaculo):
+                if velocidad[0] > 0:  # Moverse hacia la izquierda
+                    enemigo.x -= velocidad[0]
+                if velocidad[1] > 0:  # Moverse hacia arriba
+                    enemigo.y -= velocidad[1]
 
-# Función para disparar (con temporizador)
+# José Eduardo Williams 23-EISN-2-048
+# Función para disparar
 def disparar(jugador_rect, disparos, ultimo_disparo):
     tiempo_actual = time.time()
-    if tiempo_actual - ultimo_disparo > 2:  # Disparar solo si han pasado 2 segundos
+    if tiempo_actual - ultimo_disparo > 1:  # Disparar solo si han pasado 1 segundo
         if pygame.mouse.get_pressed()[0]:
             mouse_x, mouse_y = pygame.mouse.get_pos()
             angulo = math.atan2(mouse_y - jugador_rect.centery, mouse_x - jugador_rect.centerx)
@@ -102,13 +111,13 @@ def disparar(jugador_rect, disparos, ultimo_disparo):
             ultimo_disparo = tiempo_actual  # Actualizar el tiempo del último disparo
     return ultimo_disparo
 
-# José Eduardo Williams 23-EISN-2-048
 # Función para mover las balas
 def mover_balas(disparos):
     for disparo in disparos:
         disparo[0].x += disparo[1][0]
         disparo[0].y += disparo[1][1]
 
+# José Eduardo Williams 23-EISN-2-048
 # Función para detectar colisiones
 def revisar_colisiones(disparos, enemigos, obstaculos, jugador_rect):
     global running
@@ -133,24 +142,42 @@ def mover_obstaculos(obstaculos):
         obstaculo.y = random.randint(0, alto_pantalla - obstaculo_alto)
 
 # José Eduardo Williams 23-EISN-2-048
-# Función para crear obstáculos
-def crear_obstaculos():
+# Función para crear obstáculos con separación mínima y no cerca del jugador
+def crear_obstaculos(jugador_rect):
     obstaculos = []
-    for _ in range(5):  # Número de obstáculos
+    while len(obstaculos) < 5:  # Número de obstáculos
         x = random.randint(0, ancho_pantalla - obstaculo_ancho)
         y = random.randint(0, alto_pantalla - obstaculo_alto)
-        obstaculos.append(pygame.Rect(x, y, obstaculo_ancho, obstaculo_alto))
+        nuevo_obstaculo = pygame.Rect(x, y, obstaculo_ancho, obstaculo_alto)
+
+        # Asegurarse de que los obstáculos no estén cerca del jugador
+        if nuevo_obstaculo.colliderect(jugador_rect.inflate(distancia_obstaculos_jugador, distancia_obstaculos_jugador)):
+            continue
+
+        # Comprobar que no haya obstáculos demasiado cerca unos de otros
+        obstaculo_cerca = False
+        for obstaculo in obstaculos:
+            if nuevo_obstaculo.colliderect(obstaculo.inflate(distancia_entre_obstaculos, distancia_entre_obstaculos)):
+                obstaculo_cerca = True
+                break
+
+        if not obstaculo_cerca:
+            obstaculos.append(nuevo_obstaculo)
+
     return obstaculos
 
 # José Eduardo Williams 23-EISN-2-048
 # Función principal
 def game_loop():
-    global running, enemigo_conteo
+    global running, enemigo_recuento
     running = True
-    jugador_rect = pygame.Rect(jugador_x, jugador_y, ancho_jugador, alto_jugador)
+    # Restablecer la posición del jugador al centro cada vez que inicie el juego
+    player_x = ancho_pantalla // 2
+    player_y = alto_pantalla // 2
+    jugador_rect = pygame.Rect(player_x, player_y, jugador_ancho, jugador_alto)
     disparos = []
-    enemigos = generar_enemigos(enemigo_conteo)
-    obstaculos = crear_obstaculos()
+    enemigos = generar_enemigos(enemigo_recuento)
+    obstaculos = crear_obstaculos(jugador_rect)
     ultimo_disparo = time.time()  # Iniciar temporizador para disparos
     clock = pygame.time.Clock()
 
@@ -161,16 +188,19 @@ def game_loop():
                 running = False
 
         keys = pygame.key.get_pressed()
-        jugador_rect.x, jugador_rect.y = mover_jugador(keys, jugador_rect.x, jugador_rect.y)
+        jugador_rect.x, jugador_rect.y = mover_jugador(keys, jugador_rect.x, jugador_rect.y, obstaculos)
 
         ultimo_disparo = disparar(jugador_rect, disparos, ultimo_disparo)
         mover_balas(disparos)
-        mover_enemigos(enemigos, jugador_rect)
+        mover_enemigos(enemigos, jugador_rect, obstaculos)
         revisar_colisiones(disparos, enemigos, obstaculos, jugador_rect)
 
+        # Cuando los enemigos sean eliminados, teletransportamos al jugador al centro
         if not enemigos:
-            enemigo_conteo += 4
-            enemigos = generar_enemigos(enemigo_conteo)
+            jugador_rect.center = (ancho_pantalla // 2, alto_pantalla // 2)  # Teletransportar al centro
+            enemigo_recuento += 4
+            enemigos = generar_enemigos(enemigo_recuento)
+            obstaculos = crear_obstaculos(jugador_rect)  # Generar obstáculos nuevos
             mover_obstaculos(obstaculos)
 
         dibujar_contador(f"Enemigos restantes: {len(enemigos)}", 10, 10)
